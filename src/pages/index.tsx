@@ -5,11 +5,22 @@ import { ethers } from 'ethers'
 import Web3Modal from 'web3modal'
 import WalletConnectProvider from '@walletconnect/web3-provider'
 import WalletLink from 'walletlink'
-import { pxlpepes, moonpepes } from '../abi/abi'
+import {
+  // moonpepes,
+  pxlpepes
+} from '../abi/abi'
 import { env } from 'process'
 
 const Home: NextPage = () => {
-  const [addy, setAddy] = React.useState('')
+  const [address, setAddress] = React.useState('')
+  const [displayAddress, setDisplayAddress] = React.useState('')
+  const [isMainnet, setIsMainnet] = React.useState(true)
+  const [ids, setIds] = React.useState('')
+  // const [provider, setProvider] =
+  // React.useState<ethers.providers.Web3Provider>()
+  const [signer, setSigner] = React.useState<ethers.providers.JsonRpcSigner>()
+  const [txn, setTxn] = React.useState('')
+  const [minting, setMinting] = React.useState(false)
 
   const connect = async () => {
     const web3Modal = new Web3Modal({
@@ -36,34 +47,47 @@ const Home: NextPage = () => {
     })
     const instance = await web3Modal.connect()
     const provider = new ethers.providers.Web3Provider(instance)
+    // setProvider(provider)
     const signer = provider.getSigner()
-    const address = await signer.getAddress()
-    const ensName = await provider.lookupAddress(address)
+    setSigner(signer)
+    const walletAddress = await signer.getAddress()
+    setAddress(walletAddress)
+    const ensName = await provider.lookupAddress(walletAddress)
     if (ensName && ensName !== '') {
-      setAddy(ensName)
+      setDisplayAddress(ensName)
     } else {
-      setAddy(`${address.substring(0, 6)}...${address.substring(38)}`)
+      setDisplayAddress(
+        `${walletAddress.substring(0, 6)}...${walletAddress.substring(38)}`
+      )
     }
     const network = await provider.getNetwork()
-    // const isMainnet = Boolean(network.chainId === 1)
+    const mainnet = Boolean(network.chainId === 1)
+    if (!mainnet) {
+      setIsMainnet(false)
+    }
     const handleAccountsChanged = async (accounts: string[]) => {
       if (accounts.length > 0) {
         const newAddress = accounts[0] as string
+        setAddress(newAddress)
         const ensName = await provider.lookupAddress(newAddress)
         if (ensName && ensName !== '') {
-          setAddy(ensName)
+          setDisplayAddress(ensName)
         } else {
-          setAddy(`${newAddress.substring(0, 6)}...${newAddress.substring(38)}`)
+          setDisplayAddress(
+            `${newAddress.substring(0, 6)}...${newAddress.substring(38)}`
+          )
         }
       }
     }
     const handleChainChanged = (_hexChainId: string) => {
+      console.log(_hexChainId)
       window.location.reload()
     }
     const handleConenct = (info: { chainId: number }) => {
       console.log(info)
     }
-    const handleDisconnect = (_error: { code: number; message: string }) => {
+    const handleDisconnect = (error: { code: number; message: string }) => {
+      console.log(`Error [${error.code}]: ${error.message}`)
       window.localStorage.removeItem('WEB3_CONNECT_CACHED_PROVIDER')
     }
     instance.on('accountsChanged', handleAccountsChanged)
@@ -80,8 +104,30 @@ const Home: NextPage = () => {
     }
   }
 
+  const mint = async () => {
+    try {
+      const pp = new ethers.Contract(
+        '0xac12014a5884c3b038855a4e0c2419b2eccebcaf',
+        pxlpepes,
+        signer
+      )
+      const mintIds = ids
+        .replace(/\s/g, '')
+        .split(',')
+        .map((i) => parseInt(i))
+        .slice(0, 20)
+      const transactionId = await pp.mint(address, mintIds)
+      setTxn(transactionId.hash)
+      setMinting(true)
+      await transactionId.wait()
+      setMinting(false)
+    } catch (e) {
+      console.log(e)
+    }
+  }
+
   return (
-    <>
+    <div className='bg-black'>
       <Head>
         <title>Pxl Pepes</title>
         <meta
@@ -92,22 +138,57 @@ const Home: NextPage = () => {
       </Head>
 
       <main className='container mx-auto flex flex-col items-center justify-center min-h-screen p-4'>
-        <h1 className='text-5xl md:text-[5rem] leading-normal font-extrabold text-gray-700'>
+        <h1 className='text-5xl md:text-[5rem] leading-normal font-extrabold text-green'>
           Pxl Pepes Claim
         </h1>
-        {addy === '' ? (
-          <a
-            className='mt-3 text-sm underline text-violet-500 decoration-dotted underline-offset-2'
-            target='_blank'
-            rel='noreferrer'
+        {displayAddress === '' ? (
+          <button
+            className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
             onClick={connect}>
-            Connect wallet
-          </a>
+            Connect Wallet
+          </button>
         ) : (
-          <p>{addy}</p>
+          <>
+            {!isMainnet ? (
+              <p className='text-white text-2xl'>
+                Please switch to Ethereum Mainnet.
+              </p>
+            ) : (
+              <>
+                <p className='my-2 text-white text-2xl'>{displayAddress}</p>
+                <input
+                  type='text'
+                  value={ids}
+                  placeholder='Comma separated ids'
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setIds(e.target.value)
+                  }
+                />
+                <button
+                  type='submit'
+                  className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
+                  onClick={mint}>
+                  Mint
+                </button>
+                {minting && <p className='text-white my-2'>Minting...</p>}
+                {txn !== '' && (
+                  <p className='text-white'>
+                    Transaction:{' '}
+                    <a
+                      href={`https://etherscan.io/tx/${txn}`}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='text-green underline'>
+                      {`${txn.substring(0, 6)}...${txn.substring(62)}`}
+                    </a>
+                  </p>
+                )}
+              </>
+            )}
+          </>
         )}
       </main>
-    </>
+    </div>
   )
 }
 
