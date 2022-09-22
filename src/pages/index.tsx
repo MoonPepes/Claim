@@ -1,15 +1,19 @@
 import type { NextPage } from 'next'
 import Head from 'next/head'
 import * as React from 'react'
-import { ethers } from 'ethers'
+import { BigNumber, ethers } from 'ethers'
 import Web3Modal from 'web3modal'
 import WalletConnectProvider from '@walletconnect/web3-provider'
 import WalletLink from 'walletlink'
 import {
+  moonpepes,
   // moonpepes,
   pxlpepes
 } from '../abi/abi'
 import { env } from 'process'
+
+const moonPepesContract = '0x02f74badce458387ecaef9b1f229afb5678e9aad'
+const pxlPepesContract = '0xac12014a5884c3b038855a4e0c2419b2eccebcaf'
 
 const Home: NextPage = () => {
   const [address, setAddress] = React.useState('')
@@ -65,6 +69,22 @@ const Home: NextPage = () => {
     if (!mainnet) {
       setIsMainnet(false)
     }
+
+    const mp = new ethers.Contract(moonPepesContract, moonpepes, signer)
+    const mpResult: BigNumber[] = await mp.tokensOfOwner(walletAddress)
+    const moonPepeIds = mpResult.map((i) => i.toNumber())
+    const pp = new ethers.Contract(pxlPepesContract, pxlpepes, signer)
+    const claimIds = []
+    for (let i = 0; i < moonPepeIds.length; i++) {
+      const exists = await pp.exists(moonPepeIds[i])
+      if (!exists) {
+        claimIds.push(moonPepeIds[i])
+      }
+    }
+    if (claimIds.length > 0) {
+      setIds(claimIds.slice(0, 20).join(', '))
+    }
+
     const handleAccountsChanged = async (accounts: string[]) => {
       if (accounts.length > 0) {
         const newAddress = accounts[0] as string
