@@ -1,5 +1,6 @@
 import type { NextPage } from 'next'
 import Head from 'next/head'
+import Image from 'next/image'
 import * as React from 'react'
 import { BigNumber, ethers } from 'ethers'
 import Web3Modal from 'web3modal'
@@ -25,8 +26,11 @@ const Home: NextPage = () => {
   const [signer, setSigner] = React.useState<ethers.providers.JsonRpcSigner>()
   const [txn, setTxn] = React.useState('')
   const [minting, setMinting] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [mintableIds, setMintableIds] = React.useState<number[]>([])
 
   const connect = async () => {
+    setLoading(true)
     const web3Modal = new Web3Modal({
       cacheProvider: true,
       theme: 'dark',
@@ -34,9 +38,9 @@ const Home: NextPage = () => {
         walletconnect: {
           package: WalletConnectProvider,
           options: {
-            infuraId: env.INFURAID,
+            infuraId: env.NEXT_PUBLIC_INFURAID,
             rpc: {
-              1: `https://mainnet.infura.io/v3/${env.INFURAID}`
+              1: `https://mainnet.infura.io/v3/${env.NEXT_PUBLIC_INFURAID}`
             }
           }
         },
@@ -44,16 +48,23 @@ const Home: NextPage = () => {
           package: WalletLink,
           options: {
             appName: 'Cool x Clones',
-            infuraId: env.INFURAID
+            infuraId: env.NEXT_PUBLIC_INFURAID
           }
         }
       }
     })
     const instance = await web3Modal.connect()
     const provider = new ethers.providers.Web3Provider(instance)
-    // setProvider(provider)
     const signer = provider.getSigner()
     setSigner(signer)
+    const network = await provider.getNetwork()
+    const mainnet = Boolean(network.chainId === 1)
+    if (!mainnet) {
+      setIsMainnet(false)
+      setLoading(false)
+      return
+    }
+    setIsMainnet(true)
     const walletAddress = await signer.getAddress()
     setAddress(walletAddress)
     const ensName = await provider.lookupAddress(walletAddress)
@@ -64,11 +75,6 @@ const Home: NextPage = () => {
         `${walletAddress.substring(0, 6)}...${walletAddress.substring(38)}`
       )
     }
-    const network = await provider.getNetwork()
-    const mainnet = Boolean(network.chainId === 1)
-    if (!mainnet) {
-      setIsMainnet(false)
-    }
 
     const mp = new ethers.Contract(moonPepesContract, moonpepes, signer)
     const mpResult: BigNumber[] = await mp.tokensOfOwner(walletAddress)
@@ -78,12 +84,14 @@ const Home: NextPage = () => {
     for (let i = 0; i < moonPepeIds.length; i++) {
       const exists = await pp.exists(moonPepeIds[i])
       if (!exists) {
-        claimIds.push(moonPepeIds[i])
+        claimIds.push(moonPepeIds[i] as number)
       }
     }
     if (claimIds.length > 0) {
+      setMintableIds(claimIds.slice(0, 20))
       setIds(claimIds.slice(0, 20).join(', '))
     }
+    setLoading(false)
 
     const handleAccountsChanged = async (accounts: string[]) => {
       if (accounts.length > 0) {
@@ -126,11 +134,7 @@ const Home: NextPage = () => {
 
   const mint = async () => {
     try {
-      const pp = new ethers.Contract(
-        '0xac12014a5884c3b038855a4e0c2419b2eccebcaf',
-        pxlpepes,
-        signer
-      )
+      const pp = new ethers.Contract(pxlPepesContract, pxlpepes, signer)
       const mintIds = ids
         .replace(/\s/g, '')
         .split(',')
@@ -147,7 +151,7 @@ const Home: NextPage = () => {
   }
 
   return (
-    <div className='bg-black'>
+    <div className='bg-black min-h-screen'>
       <Head>
         <title>Pxl Pepes</title>
         <meta
@@ -156,54 +160,89 @@ const Home: NextPage = () => {
         />
         <link rel='icon' href='/favicon.ico' />
       </Head>
-
-      <main className='container mx-auto flex flex-col items-center justify-center min-h-screen p-4'>
-        <h1 className='text-5xl md:text-[5rem] leading-normal font-extrabold text-green'>
-          Pxl Pepes Claim
-        </h1>
-        {displayAddress === '' ? (
-          <button
-            className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
-            onClick={connect}>
-            Connect Wallet
-          </button>
-        ) : (
-          <>
-            {!isMainnet ? (
-              <p className='text-white text-2xl'>
-                Please switch to Ethereum Mainnet.
-              </p>
-            ) : (
-              <>
-                <p className='my-2 text-white text-2xl'>{displayAddress}</p>
-                <input
-                  type='text'
-                  value={ids}
-                  placeholder='Comma separated ids'
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setIds(e.target.value)
-                  }
-                />
-                <button
-                  type='submit'
-                  className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
-                  onClick={mint}>
-                  Mint
-                </button>
-                {minting && <p className='text-white my-2'>Minting...</p>}
-                {txn !== '' && (
-                  <p className='text-white'>
-                    Transaction:{' '}
-                    <a
-                      href={`https://etherscan.io/tx/${txn}`}
-                      target='_blank'
-                      rel='noreferrer'
-                      className='text-green underline'>
-                      {`${txn.substring(0, 6)}...${txn.substring(62)}`}
-                    </a>
-                  </p>
+      <header>
+        <div
+          className='relative overflow-hidden bg-no-repeat bg-cover'
+          style={{
+            backgroundPosition: '50%',
+            backgroundImage: 'url("/banner.png")',
+            height: '250px'
+          }}>
+          <div
+            className='absolute top-0 right-0 bottom-0 left-0 w-full h-full overflow-hidden bg-fixed'
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.75)' }}>
+            <div className='flex justify-center items-center h-full'>
+              <div className='text-center text-white px-6 md:px-12'>
+                <h1 className='text-5xl md:text-[5rem] leading-normal font-extrabold text-green'>
+                  Pxl Pepes Claim
+                </h1>
+                {displayAddress === '' ? (
+                  <button
+                    type='button'
+                    className='inline-block px-6 py-2.5 border-2 border-white text-white font-medium text-xs leading-tight uppercase rounded hover:bg-black hover:bg-opacity-5 focus:outline-none focus:ring-0 transition duration-150 ease-in-out'
+                    data-mdb-ripple='true'
+                    data-mdb-ripple-color='light'
+                    onClick={connect}>
+                    Connect Wallet
+                  </button>
+                ) : (
+                  <h3 className='text-3xl font-bold mb-8'>{displayAddress}</h3>
                 )}
-              </>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+      <main className='container mx-auto flex flex-col items-center justify-center min-h-fit p-4'>
+        {loading && <p className='text-white text-2xl'>Loading...</p>}
+        {!isMainnet && (
+          <p className='text-white text-2xl'>
+            Please switch to Ethereum Mainnet.
+          </p>
+        )}
+        {isMainnet && displayAddress !== '' && !loading && (
+          <>
+            <div className='my-8 flex flex-wrap justify-center space-x-2'>
+              {mintableIds.map((id) => (
+                <div key={id}>
+                  <Image
+                    key={id}
+                    src={`${process.env.NEXT_PUBLIC_IPFSDOMAIN}QmUn4a6g3Y5qgwcRMwHn5YgDRUHQoeFS6vQ4urrpDryDnN/${id}.gif`}
+                    className='p-1 bg-white border rounded max-w-xs'
+                    width={100}
+                    height={100}
+                    alt='...'
+                  />
+                </div>
+              ))}
+            </div>
+            <input
+              type='text'
+              value={ids}
+              placeholder='Comma separated ids'
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setIds(e.target.value)
+              }
+              className='hidden'
+            />
+            <button
+              type='submit'
+              className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
+              onClick={mint}>
+              Pixelize (Mint)
+            </button>
+            {minting && <p className='text-white my-2'>Minting...</p>}
+            {txn !== '' && (
+              <p className='text-white'>
+                Transaction:{' '}
+                <a
+                  href={`https://etherscan.io/tx/${txn}`}
+                  target='_blank'
+                  rel='noreferrer'
+                  className='text-green underline'>
+                  {`${txn.substring(0, 6)}...${txn.substring(62)}`}
+                </a>
+              </p>
             )}
           </>
         )}

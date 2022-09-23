@@ -1,4 +1,4 @@
-// import { env } from "./src/env/server.mjs";
+// import { env } from './src/env/server.mjs'
 
 /**
  * Don't be scared of the generics here.
@@ -19,5 +19,8 @@ export default defineNextConfig({
   i18n: {
     locales: ['en'],
     defaultLocale: 'en'
+  },
+  images: {
+    domains: ['pxlpepes.infura-ipfs.io']
   }
 })

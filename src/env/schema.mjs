@@ -15,7 +15,8 @@ export const serverSchema = z.object({
  * To expose them to the client, prefix them with `NEXT_PUBLIC_`.
  */
 export const clientSchema = z.object({
-  NEXT_PUBLIC_INFURAID: z.string()
+  NEXT_PUBLIC_INFURAID: z.string(),
+  NEXT_PUBLIC_IPFSDOMAIN: z.string()
 })
 
 /**
@@ -25,5 +26,6 @@ export const clientSchema = z.object({
  * @type {{ [k in keyof z.infer<typeof clientSchema>]: z.infer<typeof clientSchema>[k] | undefined }}
  */
 export const clientEnv = {
-  NEXT_PUBLIC_INFURAID: process.env.NEXT_PUBLIC_INFURAID
+  NEXT_PUBLIC_INFURAID: process.env.NEXT_PUBLIC_INFURAID,
+  NEXT_PUBLIC_IPFSDOMAIN: process.env.NEXT_PUBLIC_IPFSDOMAIN
 }
