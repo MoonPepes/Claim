@@ -16,6 +16,35 @@ import { env } from 'process'
 const moonPepesContract = '0x02f74badce458387ecaef9b1f229afb5678e9aad'
 const pxlPepesContract = '0xac12014a5884c3b038855a4e0c2419b2eccebcaf'
 
+type ErrorWithMessage = {
+  message: string
+}
+
+const isErrorWithMessage = (error: unknown): error is ErrorWithMessage => {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as Record<string, unknown>).message === 'string'
+  )
+}
+
+const toErrorWithMessage = (maybeError: unknown): ErrorWithMessage => {
+  if (isErrorWithMessage(maybeError)) return maybeError
+
+  try {
+    return new Error(JSON.stringify(maybeError))
+  } catch {
+    // fallback in case there's an error stringifying the maybeError
+    // like with circular references for example.
+    return new Error(String(maybeError))
+  }
+}
+
+const getErrorMessage = (error: unknown) => {
+  return toErrorWithMessage(error).message
+}
+
 const Home: NextPage = () => {
   const [address, setAddress] = React.useState('')
   const [displayAddress, setDisplayAddress] = React.useState('')
@@ -28,6 +57,19 @@ const Home: NextPage = () => {
   const [minting, setMinting] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [mintableIds, setMintableIds] = React.useState<number[]>([])
+  const [overTwenty, setOverTwenty] = React.useState(false)
+  const [noClaims, setNoClaims] = React.useState(false)
+  const [errorMessage, setErrorMessage] = React.useState('')
+
+  React.useEffect(() => {
+    let interval: NodeJS.Timer
+    if (errorMessage !== '') {
+      interval = setInterval(() => {
+        setErrorMessage('')
+      }, 10000)
+    }
+    return () => clearInterval(interval)
+  }, [errorMessage])
 
   const connect = async () => {
     setLoading(true)
@@ -88,8 +130,13 @@ const Home: NextPage = () => {
       }
     }
     if (claimIds.length > 0) {
+      if (claimIds.length > 20) {
+        setOverTwenty(true)
+      }
       setMintableIds(claimIds.slice(0, 20))
       setIds(claimIds.slice(0, 20).join(', '))
+    } else {
+      setNoClaims(true)
     }
     setLoading(false)
 
@@ -146,7 +193,14 @@ const Home: NextPage = () => {
       await transactionId.wait()
       setMinting(false)
     } catch (e) {
-      console.log(e)
+      const msg = getErrorMessage(e)
+      if (msg.includes('user rejected transaction')) {
+        setErrorMessage('Transaction Cancelled.')
+      } else if (msg.includes('Ledger device')) {
+        setErrorMessage('Ledger locked.')
+      } else {
+        setErrorMessage(msg)
+      }
     }
   }
 
@@ -194,7 +248,9 @@ const Home: NextPage = () => {
         </div>
       </header>
       <main className='container mx-auto flex flex-col items-center justify-center min-h-fit p-4'>
-        {loading && <p className='text-white text-2xl'>Loading...</p>}
+        {loading && (
+          <Image src='/loading.gif' alt='Loading...' width={200} height={200} />
+        )}
         {!isMainnet && (
           <p className='text-white text-2xl'>
             Please switch to Ethereum Mainnet.
@@ -204,10 +260,9 @@ const Home: NextPage = () => {
           <>
             <div className='my-8 flex flex-wrap justify-center space-x-2'>
               {mintableIds.map((id) => (
-                <div key={id}>
+                <div className='my-2 basis-1/5' key={id}>
                   <Image
-                    key={id}
-                    src={`${process.env.NEXT_PUBLIC_IPFSDOMAIN}QmUn4a6g3Y5qgwcRMwHn5YgDRUHQoeFS6vQ4urrpDryDnN/${id}.gif`}
+                    src={`/pp/${id}.png`}
                     className='p-1 bg-white border rounded max-w-xs'
                     width={100}
                     height={100}
@@ -215,6 +270,19 @@ const Home: NextPage = () => {
                   />
                 </div>
               ))}
+            </div>
+            <div className='my-8'>
+              {overTwenty && (
+                <p className='text-white text-2xl'>🐳 20 at time</p>
+              )}
+              {noClaims && (
+                <p className='text-white text-2xl'>
+                  No Pxl Pepe claims available.
+                </p>
+              )}
+              {errorMessage !== '' && (
+                <p className='text-red text-2xl'>{errorMessage}</p>
+              )}
             </div>
             <input
               type='text'
@@ -225,24 +293,28 @@ const Home: NextPage = () => {
               }
               className='hidden'
             />
-            <button
-              type='submit'
-              className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
-              onClick={mint}>
-              Pixelize (Mint)
-            </button>
+            {!noClaims && (
+              <button
+                type='submit'
+                className='cursor:pointer mt-3 px-4 py-2 rounded-md bg-green text-sm text-black shadow-lg'
+                onClick={mint}>
+                Mint
+              </button>
+            )}
             {minting && <p className='text-white my-2'>Minting...</p>}
             {txn !== '' && (
-              <p className='text-white'>
-                Transaction:{' '}
-                <a
-                  href={`https://etherscan.io/tx/${txn}`}
-                  target='_blank'
-                  rel='noreferrer'
-                  className='text-green underline'>
-                  {`${txn.substring(0, 6)}...${txn.substring(62)}`}
-                </a>
-              </p>
+              <div className='mt-3'>
+                <p className='text-white text-2xl'>
+                  Transaction:{' '}
+                  <a
+                    href={`https://etherscan.io/tx/${txn}`}
+                    target='_blank'
+                    rel='noreferrer'
+                    className='text-green underline'>
+                    {`${txn.substring(0, 6)}...${txn.substring(62)}`}
+                  </a>
+                </p>
+              </div>
             )}
           </>
         )}
