@@ -89,7 +89,7 @@ const Home: NextPage = () => {
         walletlink: {
           package: WalletLink,
           options: {
-            appName: 'Cool x Clones',
+            appName: 'Pxl Pepes',
             infuraId: env.NEXT_PUBLIC_INFURAID
           }
         }
@@ -192,6 +192,7 @@ const Home: NextPage = () => {
       setMinting(true)
       await transactionId.wait()
       setMinting(false)
+      window.location.reload()
     } catch (e) {
       const msg = getErrorMessage(e)
       if (msg.includes('user rejected transaction')) {
@@ -258,9 +259,9 @@ const Home: NextPage = () => {
         )}
         {isMainnet && displayAddress !== '' && !loading && (
           <>
-            <div className='my-8 flex flex-wrap justify-center space-x-2'>
+            <div className='my-8 flex flex-wrap justify-center space-x-2 max-w-md'>
               {mintableIds.map((id) => (
-                <div className='my-2 basis-1/5' key={id}>
+                <div className='my-2' key={id}>
                   <Image
                     src={`/pp/${id}.png`}
                     className='p-1 bg-white border rounded max-w-xs'
